@@ -1,0 +1,27 @@
+{
+  "repository-code": {
+    "message": "Represent the prefix of the internalCode for this repository",
+    "description": "Represent the prefix of the internalCode for this repository",
+    "code": "108",
+    "severity": "Low",
+    "removeFromHTMLReport": true
+  },
+  "default-error": {
+    "message": "Unknown Error, contact support",
+    "description": "Unknown Error, check logs",
+    "code": "000",
+    "severity": "High"
+  },
+  "invalid-request-malformed-body": {
+    "message": "Malformed / Invalid request, check API documentation",
+    "description": "Request contains malformed body",
+    "code": "001",
+    "severity": "High"
+  },
+  "agents-updates-internal": {
+    "message": "Internal Server Error",
+    "description": "Failed to perform business logic, check logs",
+    "code": "002",
+    "severity": "High"
+  }
+}

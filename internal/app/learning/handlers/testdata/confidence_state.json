@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "confidence_set": [
+    {
+      "key": "url#/search/catalog/_num",
+      "value": {
+        "first": [
+          "/search"
+        ],
+        "second": 48036
+      }
+    }
+  ],
+  "confidence_levels": [
+    {
+      "key": "url#/assets/default.jpg",
+      "value": [
+        {
+          "key": "#",
+          "value": 7.409224221310753e-8
+        },
+        {
+          "key": "base64",
+          "value": 7.409224221310753e-8
+        }
+      ]
+    },
+    {
+      "key": "url_param#from",
+      "value": [
+        {
+          "key": "regex_code_execution_2",
+          "value": 0.0
+        },
+        {
+          "key": "os_cmd_sep_medium_acuracy",
+          "value": 0.0
+        }
+      ]
+    },
+    {
+      "key": "url#/assets/_num/default.jpg",
+      "value": [
+        {
+          "key": "#",
+          "value": 424.3818030965111
+        },
+        {
+          "key": "base64",
+          "value": 424.3818030965111
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+server:
+  port: 8080
+  timeout: "15s"
+  configurationServer: "" # configuration server can be either etcd or empty
+log:
+  level: "debug"
+tracer:
+  host: localhost:6831
+  enabled: false
+errors:
+  filepath: "configs/error-responses.json"
+  code: 108
+rp:
+  baseUrl: "http://<s3-bucket>/"
+redis:
+  sentinelMasterName: "mymaster"
+  sentinelPassword: ""
+  tlsEnabled: false
+  address: "<redis-address>:<redis-port>"
+  ttl: "15m"
+kafka:
+  consumer:
+    dlq:
+      topic: "fog.dlq"
+    brokers: "localhost:9092"
+    tls: true
+    learnNotification:
+      topic: mq-events-notifications
+      groupId: msrv-learning
+flock:
+  root: "/tmp/cp/"
+  ttl: "5m"

@@ -1,0 +1,42 @@
+{
+  "logs":[
+    {
+      "log":{
+        "eventTime":"2021-06-10T12:27:51.068",
+        "eventName":"Sync notification for asset 'test 14'",
+        "eventSeverity":"Info",
+        "eventPriority":"Low",
+        "eventLogLevel":"info",
+        "eventType":"Event Driven",
+        "eventLevel":"Log",
+        "eventAudience":"Internal",
+        "eventAudienceTeam":"WAAP",
+        "eventFrequency":0,
+        "eventSource":{
+          "serviceName":"HTTP Transaction Handler",
+          "agentId":"b2bd9e3d-dc43-467f-a722-c3dfcc022596",
+          "tenantId":"8616486a-05b9-4911-866a-719a18b4b3f8",
+          "serviceId":"1",
+          "issuingEngineVersion":"ee129a5"
+        },
+        "eventData":{
+          "notificationId":"b9b9ab04-2e2a-4cd1-b7e5-2c956861fb69",
+          "eventObject":{
+            "notificationConsumerData":{
+              "syncLearnNotificationConsumers":{
+                "assetId":"2abce0ff-5d3d-27c8-b896-9673dc1bad30",
+                "type": "Indicators/Confidence",
+                "windowId": "168423_2"
+              }
+            }
+          }
+        },
+        "eventTags":[
+          "Web Application & API Protection"
+        ]
+      },
+      "tenantId":"8616486a-05b9-4911-866a-719a18b4b3f8",
+      "id":1
+    }
+  ]
+}
