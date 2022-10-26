@@ -7,7 +7,7 @@
 
 open-appsec is a machine learning security engine that preemptively and automatically prevent threats against Web Application & APIs.
 
-open-appsec smartsync service is in charge of correlating learning data of different agents protecting an assets and delivering a unified learning model for each asset.
+open-appsec smartsync service is in charge of correlating learning data from multiple agent instances and delivering a unified learning model for each asset.
 
 ## open-appsec smartsync service compilation instructions
 
