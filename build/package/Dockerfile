@@ -4,9 +4,6 @@
 # golang alpine 1.18
 FROM golang:1.18-alpine as builder
 
-# Create appuser so as not to run as root
-RUN adduser -D -g '' appuser
-
 RUN mkdir /app
 WORKDIR /app
 
@@ -29,6 +26,12 @@ COPY --from=builder /go/bin/app /go/bin/app
 
 # Copy configuration files
 COPY --from=builder /app/configs/* ./configs/
+
+# Create appuser so as not to run as root
+RUN adduser -D -g '' appuser
+
+RUN apk add libcap
+RUN setcap CAP_NET_BIND_SERVICE=+eip /go/bin/app
 
 # Use an unprivileged user.
 USER appuser
