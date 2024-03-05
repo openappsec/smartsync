@@ -19,15 +19,15 @@ import (
 	"context"
 	"encoding/json"
 	"encoding/xml"
+	errs "errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"net/url"
-	"time"
-
 	"openappsec.io/smartsync-service/models"
+	"time"
 
 	"openappsec.io/ctxutils"
 	"openappsec.io/errors"
@@ -84,7 +84,7 @@ func (a *Adapter) initialize(c Configuration) error {
 	return nil
 }
 
-//GetFileRaw - download file, return raw data and true if data was decompressed
+// GetFileRaw - download file, return raw data and true if data was decompressed
 func (a *Adapter) GetFileRaw(ctx context.Context, tenantID string, path string) ([]byte, bool, error) {
 	if path[:1] != "/" {
 		path = "/" + path
@@ -108,7 +108,7 @@ func (a *Adapter) GetFileRaw(ctx context.Context, tenantID string, path string) 
 		}
 		decompressed, err := ioutil.ReadAll(compressor)
 		defer compressor.Close()
-		if err != nil {
+		if err != nil && !errs.Is(err, io.ErrUnexpectedEOF) {
 			log.WithContext(ctx).Warnf("failed to decompress, err: %v, is EOF: %v", err, err == io.EOF)
 			return []byte{}, false, errors.Wrapf(err, "failed to decompress %v", string(resp))
 		}
@@ -121,7 +121,7 @@ func (a *Adapter) GetFileRaw(ctx context.Context, tenantID string, path string) 
 	return resp, false, nil
 }
 
-//GetFile - download file and unmarshal to out return true is data was decompressed
+// GetFile - download file and unmarshal to out return true is data was decompressed
 func (a *Adapter) GetFile(ctx context.Context, tenantID string, path string, out interface{}) (bool, error) {
 	data, isCompressed, err := a.GetFileRaw(ctx, tenantID, path)
 	if err != nil {
