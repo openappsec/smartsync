@@ -36,8 +36,9 @@ RUN setcap CAP_NET_BIND_SERVICE=+eip /go/bin/app
 # Use an unprivileged user.
 USER appuser
 
+ENV APPSEC_MODE "standalone"
 # Port on which the service will be exposed.
-EXPOSE 8080
+EXPOSE 80
 
 # Run the app binary.
 ENTRYPOINT ["/go/bin/app"]

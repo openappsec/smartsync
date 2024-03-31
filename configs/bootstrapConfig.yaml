@@ -1,5 +1,5 @@
 server:
-  port: 8080
+  port: 80
   timeout: "15s"
   configurationServer: "" # configuration server can be either etcd or empty
 log:

@@ -39,8 +39,10 @@ const (
 	traceClientTimeout = 2 * time.Minute
 
 	//conf Key Reverse Proxy
-	rp        = "rp"
-	rpBaseURL = rp + ".baseUrl"
+	rp                   = "rp"
+	rpBaseURL            = rp + ".baseUrl"
+	sharedStorageKey     = "shared_storage"
+	sharedStorageHostKey = sharedStorageKey + ".host"
 
 	tenantIDHeader         = "x-tenant-id"
 	headerKeyTraceID       = "X-Trace-Id"
@@ -71,7 +73,13 @@ func NewAdapter(c Configuration) (*Adapter, error) {
 
 // initialize the adapter
 func (a *Adapter) initialize(c Configuration) error {
-	baseURL, err := c.GetString(rpBaseURL)
+	var baseURL string
+	host, err := c.GetString(sharedStorageHostKey)
+	if err != nil {
+		baseURL, err = c.GetString(rpBaseURL)
+	} else {
+		baseURL = fmt.Sprintf("http://%s/api", host)
+	}
 	if err != nil {
 		return errors.Wrapf(err, "failed to get reverse proxy baseURL from %v", rpBaseURL)
 	}
