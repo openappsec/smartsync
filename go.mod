@@ -2,6 +2,18 @@ module openappsec.io/smartsync-service
 
 go 1.18
 
+replace (
+	openappsec.io/configuration => ./dependencies/openappsec.io/configuration
+	openappsec.io/ctxutils => ./dependencies/openappsec.io/ctxutils
+	openappsec.io/errors => ./dependencies/openappsec.io/errors
+	openappsec.io/health => ./dependencies/openappsec.io/health
+	openappsec.io/httputils => ./dependencies/openappsec.io/httputils
+	openappsec.io/kafka => ./dependencies/openappsec.io/kafka
+	openappsec.io/log => ./dependencies/openappsec.io/log
+	openappsec.io/redis => ./dependencies/openappsec.io/redis
+	openappsec.io/tracer => ./dependencies/openappsec.io/tracer
+)
+
 require (
 	github.com/go-chi/chi v4.1.2+incompatible
 	github.com/google/uuid v1.1.2
@@ -48,16 +60,4 @@ require (
 	golang.org/x/xerrors v0.0.0-20220411194840-2f41105eb62f // indirect
 	gopkg.in/ini.v1 v1.64.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-)
-
-replace (
-	openappsec.io/configuration => ./dependencies/openappsec.io/configuration
-	openappsec.io/ctxutils => ./dependencies/openappsec.io/ctxutils
-	openappsec.io/errors => ./dependencies/openappsec.io/errors
-	openappsec.io/health => ./dependencies/openappsec.io/health
-	openappsec.io/httputils => ./dependencies/openappsec.io/httputils
-	openappsec.io/kafka => ./dependencies/openappsec.io/kafka
-	openappsec.io/log => ./dependencies/openappsec.io/log
-	openappsec.io/redis => ./dependencies/openappsec.io/redis
-	openappsec.io/tracer => ./dependencies/openappsec.io/tracer
 )

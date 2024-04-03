@@ -18,9 +18,9 @@ import (
 	"os"
 	"time"
 
+	"openappsec.io/log"
 	"openappsec.io/smartsync-service/internal/app"
 	"openappsec.io/smartsync-service/internal/app/ingector"
-	"openappsec.io/log"
 )
 
 const (
@@ -35,7 +35,7 @@ const (
 func main() {
 	initCtx, initCancel := context.WithTimeout(context.Background(), initTimeout*time.Second)
 
-	isStandAloneMode := os.Getenv(envKeyMode) == "stand-alone"
+	isStandAloneMode := os.Getenv(envKeyMode) == "standalone"
 	var app *app.App
 	var err error
 	if isStandAloneMode {
