@@ -1,5 +1,6 @@
 server:
   port: 80
+  alternative_port: 8080
   timeout: "15s"
   configurationServer: "" # configuration server can be either etcd or empty
 log:
