@@ -35,7 +35,8 @@ const (
 func main() {
 	initCtx, initCancel := context.WithTimeout(context.Background(), initTimeout*time.Second)
 
-	isStandAloneMode := os.Getenv(envKeyMode) == "standalone"
+	appsecMode := os.Getenv(envKeyMode)
+	isStandAloneMode := appsecMode == "standalone" || appsecMode == "stand-alone"
 	var app *app.App
 	var err error
 	if isStandAloneMode {

@@ -75,7 +75,7 @@ func NewAdapter(c Configuration) (*Adapter, error) {
 func (a *Adapter) initialize(c Configuration) error {
 	var baseURL string
 	host, err := c.GetString(sharedStorageHostKey)
-	if err != nil {
+	if err != nil || host == "" {
 		baseURL, err = c.GetString(rpBaseURL)
 	} else {
 		baseURL = fmt.Sprintf("http://%s/api", host)
