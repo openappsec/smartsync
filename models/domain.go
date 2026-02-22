@@ -27,12 +27,20 @@ type State interface {
 	GetOriginalPath(ids SyncID) string
 }
 
-//SyncHandler defines a handler for sync per type
-type SyncHandler interface {
+// DataCollector defines the interface for data collection per type
+type DataCollector interface {
 	NewDataStruct() interface{}
 	MergeData(data interface{})
+	ClearMergedData()
+}
+
+// SyncHandler defines a handler for sync per type
+type SyncHandler interface {
+	DataCollector
+
 	NewState() State
 	ProcessData(ctx context.Context, state State) State
+	ProcessDataFromCentralData(ctx context.Context, state State, mergedData *CentralData) State
 	GetDependencies() map[SyncID]SyncHandler
 	SetCompressionEnabled()
 }

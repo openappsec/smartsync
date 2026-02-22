@@ -78,7 +78,20 @@ func (s *ScannersDetectorHandler) SetCompressionEnabled() {
 // MergeData merges the data from agent into struct member
 func (s *ScannersDetectorHandler) MergeData(data interface{}) {
 	monitor := data.(*scannersMonitor)
-	mergeAndConvertCerealToGo(monitor.Monitor, s.mergedMonitors.Monitor)
+	mergeAndConvertCerealToGo(monitor.Monitor, s.mergedMonitors.Monitor, false)
+}
+
+// ClearMergedData releases references to merged data to free memory between runs.
+func (s *ScannersDetectorHandler) ClearMergedData() {
+	s.mergedMonitors = scannersDetectMergedData{Monitor: map[string]map[string]map[string]bool{}}
+}
+
+// ProcessDataFromCentralData processes data from central data
+// ScannersDetector is handled as a dependency in indicators confidence, not directly from central data
+func (s *ScannersDetectorHandler) ProcessDataFromCentralData(ctx context.Context, state models.State, mergedData *models.CentralData) models.State {
+	// ScannersDetector uses its own monitor data structure, not CentralData
+	// This is a pass-through to ProcessData for interface compliance
+	return s.ProcessData(ctx, state)
 }
 
 //NewState returns a struct representing the state

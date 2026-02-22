@@ -13,6 +13,10 @@
 
 package models
 
+import (
+	"encoding/json"
+)
+
 // Values list of values
 type Values []string
 
@@ -56,7 +60,17 @@ const (
 	IndicatorsTrusted    SyncType = "Indicators/Trust"
 	TypesConfidence      SyncType = "Type/Confidence"
 	TypesTrusted         SyncType = "Type/Trust"
+	CentralizedData      SyncType = "CentralizedData"
 )
+
+// SyncTypes is an iterable list of known sync types for centralized data processing
+var SyncTypes = []SyncType{
+	ScannersDetector,
+	IndicatorsConfidence,
+	IndicatorsTrusted,
+	TypesConfidence,
+	TypesTrusted,
+}
 
 // SyncID contain all the data that defines the sync operation
 type SyncID struct {
@@ -71,4 +85,113 @@ type SyncLearnNotificationConsumers struct {
 	AssetID  string   `json:"assetId"`
 	Type     SyncType `json:"type"`
 	WindowID string   `json:"windowId"`
+}
+
+// CentralData is the struct for centralized data collection, matching the expected JSON
+// Uses []*string for pointer-based deduplication
+type CentralData struct {
+	TrustedSources []*string              `json:"trustedSources"`
+	Logger         map[string]LoggerEntry `json:"logger"`
+}
+
+// CentralDataWrapper is a wrapper for CentralData to match the JSON structure
+type CentralDataWrapper struct {
+	Data *CentralData `json:"unifiedIndicators"`
+}
+
+// UnmarshalJSON customizes the JSON unmarshalling for CentralData
+// Deduplicates trusted sources using pointers at unmarshal time
+func (c *CentralData) UnmarshalJSON(data []byte) error {
+	type rawCentralData struct {
+		Logger         map[string]LoggerEntry `json:"logger"`
+		TrustedSources []string               `json:"trustedSources"`
+	}
+	var raw rawCentralData
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	// String pool for deduplication of trusted sources
+	stringPool := make(map[string]*string)
+
+	getOrCreate := func(s string) *string {
+		if ptr, ok := stringPool[s]; ok {
+			return ptr
+		}
+		str := s
+		stringPool[str] = &str
+		return stringPool[str]
+	}
+
+	// Deduplicate TrustedSources
+	c.TrustedSources = make([]*string, 0, len(raw.TrustedSources))
+	for _, src := range raw.TrustedSources {
+		c.TrustedSources = append(c.TrustedSources, getOrCreate(src))
+	}
+
+	// Logger entries already unmarshaled (each entry deduplicates internally)
+	c.Logger = raw.Logger
+	return nil
+}
+
+// LoggerEntry represents a single entry in the logger with total sources, indicators, and types
+// Uses []*string for pointer-based string deduplication at unmarshal time
+type LoggerEntry struct {
+	TotalSources []*string            `json:"totalSources"`
+	Indicators   map[string][]*string `json:"indicators"`
+	Types        map[string][]*string `json:"types"`
+}
+
+// UnmarshalJSON customizes the JSON unmarshalling for LoggerEntry
+// It deduplicates strings at unmarshal time using pointers to reduce memory usage
+func (l *LoggerEntry) UnmarshalJSON(data []byte) error {
+	type rawLoggerEntry struct {
+		TotalSources []string            `json:"totalSources"`
+		Indicators   map[string][]string `json:"indicators"`
+		Types        map[string][]string `json:"types"`
+	}
+	var raw rawLoggerEntry
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	// String pool for deduplication within this logger entry
+	stringPool := make(map[string]*string)
+
+	getOrCreate := func(s string) *string {
+		if ptr, ok := stringPool[s]; ok {
+			return ptr
+		}
+		// Create a new string and store pointer in pool
+		str := s
+		stringPool[str] = &str
+		return stringPool[str]
+	}
+
+	// Deduplicate TotalSources
+	l.TotalSources = make([]*string, 0, len(raw.TotalSources))
+	for _, src := range raw.TotalSources {
+		l.TotalSources = append(l.TotalSources, getOrCreate(src))
+	}
+
+	// Deduplicate Indicators
+	l.Indicators = make(map[string][]*string, len(raw.Indicators))
+	for key, arr := range raw.Indicators {
+		ptrSlice := make([]*string, 0, len(arr))
+		for _, v := range arr {
+			ptrSlice = append(ptrSlice, getOrCreate(v))
+		}
+		l.Indicators[key] = ptrSlice
+	}
+
+	// Deduplicate Types
+	l.Types = make(map[string][]*string, len(raw.Types))
+	for key, arr := range raw.Types {
+		ptrSlice := make([]*string, 0, len(arr))
+		for _, v := range arr {
+			ptrSlice = append(ptrSlice, getOrCreate(v))
+		}
+		l.Types[key] = ptrSlice
+	}
+	return nil
 }

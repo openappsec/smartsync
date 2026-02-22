@@ -21,9 +21,9 @@ import (
 	"strings"
 	"time"
 
-	"openappsec.io/smartsync-service/models"
 	"openappsec.io/errors"
 	"openappsec.io/log"
+	"openappsec.io/smartsync-service/models"
 )
 
 const (
@@ -38,7 +38,7 @@ type Repository interface {
 	PostFile(ctx context.Context, tenantID string, path string, compress bool, data interface{}) error
 }
 
-//NewConfidenceCalculator creates a new struct of confidence calculator
+// NewConfidenceCalculator creates a new struct of confidence calculator
 func NewConfidenceCalculator(id models.SyncID, params models.ConfidenceParams, tuningDecisions models.TuningEvents, repo Repository) *ConfidenceCalculator {
 	cc := &ConfidenceCalculator{
 		params:    params,
@@ -60,7 +60,7 @@ func NewConfidenceCalculator(id models.SyncID, params models.ConfidenceParams, t
 	return cc
 }
 
-//ConfidenceCalculator represents a confidence calculator handler
+// ConfidenceCalculator represents a confidence calculator handler
 type ConfidenceCalculator struct {
 	dependencies  map[models.SyncID]models.SyncHandler
 	filterSources *ScannersDetectorHandler
@@ -133,7 +133,7 @@ func (cd *confidenceData) GetOriginalPath(ids models.SyncID) string {
 	return fmt.Sprintf("/%v/%v/%v/processed/confidence.data", ids.TenantID, ids.AssetID, ids.Type)
 }
 
-//GetFilePath returns the path to the state file saved by the service
+// GetFilePath returns the path to the state file saved by the service
 func (cd *confidenceData) GetFilePath(id models.SyncID) string {
 	return fmt.Sprintf("/%v/%v/%v/remote/confidence.data", id.TenantID, id.AssetID, id.Type)
 }
@@ -171,7 +171,7 @@ func (c *ConfidenceCalculator) MergeData(data interface{}) {
 	}
 }
 
-//NewState returns a struct representing the state
+// NewState returns a struct representing the state
 func (c *ConfidenceCalculator) NewState() models.State {
 	return &confidenceData{}
 }
@@ -230,7 +230,7 @@ func convertToDataStruct(key string, valuesAndSources map[string]map[string]bool
 	return ret
 }
 
-//ProcessData gets the last state and update the state according to the collected data
+// ProcessData gets the last state and update the state according to the collected data
 func (c *ConfidenceCalculator) ProcessData(ctx context.Context, state models.State) models.State {
 	stateStruct := state.(*confidenceData)
 	stateModel := convertStateToModel(stateStruct)
@@ -436,9 +436,61 @@ func (c *ConfidenceCalculator) calculateConfidenceDelta(
 	return delta
 }
 
-//GetDependencies return the handlers that this handler is dependent on
+// GetDependencies return the handlers that this handler is dependent on
 func (c *ConfidenceCalculator) GetDependencies() map[models.SyncID]models.SyncHandler {
 	return c.dependencies
+}
+
+// ClearMergedData releases references to large in-memory merged data maps to allow GC to reclaim memory
+// after a processing cycle finishes. Should be called once the state has been derived.
+func (c *ConfidenceCalculator) ClearMergedData() {
+	// Replace with fresh empty map instead of nil to avoid nil map assignment panics in future merges
+	c.md.log = mms{}
+}
+
+// ProcessDataFromCentralData processes data from the central data source
+func (c *ConfidenceCalculator) ProcessDataFromCentralData(ctx context.Context, state models.State, mergedData *models.CentralData) models.State {
+	log.WithContext(ctx).Debugf("ConfidenceCalculator.ProcessDataFromCentralData id: %+v", c.id)
+	c.md.log = mms{} // reset
+	// Use pointer-based deduplication (already done at unmarshal time)
+	for key, entry := range mergedData.Logger {
+		if _, ok := c.md.log[key]; !ok {
+			c.md.log[key] = map[string]map[string]bool{}
+		}
+		if c.id.Type == models.TypesConfidence {
+			for typeKey, sourcePtrs := range entry.Types {
+				if typeKey == "long_random_text" {
+					continue
+				}
+				if _, ok := c.md.log[key][typeKey]; !ok {
+					c.md.log[key][typeKey] = map[string]bool{}
+				}
+				// Dereference pointers - strings already deduplicated at unmarshal
+				for _, srcPtr := range sourcePtrs {
+					c.md.log[key][typeKey][*srcPtr] = true
+				}
+			}
+		} else {
+			for indKey, sourcePtrs := range entry.Indicators {
+				if _, ok := c.md.log[key][indKey]; !ok {
+					c.md.log[key][indKey] = map[string]bool{}
+				}
+				// Dereference pointers - strings already deduplicated at unmarshal
+				for _, srcPtr := range sourcePtrs {
+					c.md.log[key][indKey][*srcPtr] = true
+				}
+			}
+		}
+		if len(entry.TotalSources) > 0 {
+			allSources := map[string]bool{}
+			// Dereference pointers - strings already deduplicated at unmarshal
+			for _, srcPtr := range entry.TotalSources {
+				allSources[*srcPtr] = true
+			}
+			c.md.log[key][c.params.NullObject] = allSources
+		}
+	}
+	return c.ProcessData(ctx, state)
 }
 
 func (c *ConfidenceCalculator) isParamBenign(key string) bool {

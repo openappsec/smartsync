@@ -42,7 +42,7 @@ func (lc *LearnCore) unlockOnPanic(ctx context.Context, lockKey string) {
 	}
 }
 
-//ProcessSyncRequest process a request to sync
+// ProcessSyncRequest process a request to sync
 func (lc *LearnCore) ProcessSyncRequest(ctx context.Context, ids models.SyncID) error {
 	lockKey := genKey(ids)
 	hasLock := lc.lock.Lock(ctx, lockKey)
@@ -52,16 +52,25 @@ func (lc *LearnCore) ProcessSyncRequest(ctx context.Context, ids models.SyncID) 
 	}
 	log.WithContext(ctx).Infof("handling event: %v", ids)
 	defer lc.unlockOnPanic(ctx, lockKey)
-	handlers, err := lc.handlersFactory(ctx, ids)
+	if ids.Type == models.CentralizedData {
+		log.WithContext(ctx).Infof("handling centralized data all handlers for event: %+v", ids)
+		err := lc.handleCentralDataType(ctx, ids)
+		if err != nil {
+			err = errors.Wrap(err, "failed running central type")
+			lc.lock.Unlock(ctx, lockKey)
+		}
+		return err
+	}
+	syncHandlers, err := lc.handlersFactory(ctx, ids)
 	if err != nil {
 		log.WithContext(ctx).Warnf("failed to get handlers for: %v, err: %v", ids, err)
 		return nil
 	}
-	if len(handlers) == 0 {
+	if len(syncHandlers) == 0 {
 		log.WithContext(ctx).Debugf("no handlers for event: %v", ids)
 		return nil
 	}
-	err = lc.syncWorker(ctx, handlers)
+	err = lc.syncWorker(ctx, syncHandlers)
 	if err != nil {
 		err = errors.Wrap(err, "failed running sync worker")
 		lc.lock.Unlock(ctx, lockKey)
@@ -97,7 +106,7 @@ func (lc *LearnCore) handlersFactory(ctx context.Context, id models.SyncID) (map
 		}
 		ret[id] = handlers.NewConfidenceCalculator(id, params, lc.getTuningDecisions(ctx, id), lc.repo)
 	case models.IndicatorsTrusted:
-		ret[id] = handlers.NewTrustedSources()
+		ret[id] = handlers.NewTrustedSources(id)
 	case models.ScannersDetector:
 		// do nothing - is handled as a dependency in indicators confidence
 	case models.TypesConfidence:
@@ -110,18 +119,141 @@ func (lc *LearnCore) handlersFactory(ctx context.Context, id models.SyncID) (map
 		}
 		ret[id] = handlers.NewConfidenceCalculator(id, params, lc.getTuningDecisions(ctx, id), lc.repo)
 	case models.TypesTrusted:
-		ret[id] = handlers.NewTrustedSources()
+		ret[id] = handlers.NewTrustedSources(id)
+	case models.CentralizedData:
+		// Centralized data is handled separately in ProcessSyncRequest
+		// do nothing here
 	default:
 		return nil, errors.Errorf("type %v is unrecognized", id.Type)
 	}
 	return ret, nil
 }
 
-func (lc *LearnCore) syncWorker(ctx context.Context, handlers map[models.SyncID]models.SyncHandler) error {
-	if len(handlers) == 0 {
+func (lc *LearnCore) handleCentralDataType(ctx context.Context, ids models.SyncID) error {
+	log.WithContext(ctx).Infof("handleCentralDataType id: %+v", ids)
+	// create central data collector
+	centralDataCollector := handlers.NewCentralDataCollector(ids, lc.repo)
+	isCompressEnable, err := lc.mergeAgentFiles(ctx, ids, centralDataCollector)
+	if err != nil {
+		return errors.Wrapf(err, "failed merging central agent data for %s", ids.TenantID)
+	}
+
+	allHandlers := centralDataCollector.GetAllHandlers(ctx, ids, lc.getTuningDecisions(ctx, ids))
+	if len(allHandlers) == 0 {
+		log.WithContext(ctx).Debugf("no handlers for centralized data for event: %v", ids)
+		return nil
+	}
+	for idsH, handler := range allHandlers {
+		if len(handler.GetDependencies()) > 0 {
+			log.WithContext(ctx).Infof("handle dependency of: %v", idsH)
+			dependencyHandler := handler.GetDependencies()
+			for depIds, depHandler := range dependencyHandler {
+				err := lc.invokeHandler(ctx, depHandler, isCompressEnable, depIds, centralDataCollector, ids)
+				if err != nil {
+					return err
+				}
+			}
+		}
+		err := lc.invokeHandler(ctx, handler, isCompressEnable, idsH, centralDataCollector, ids)
+		if err != nil {
+			return err
+		}
+	}
+	// Clear references to allow GC to reclaim memory
+	centralDataCollector.ClearMergedData()
+	return nil
+}
+
+func (lc *LearnCore) invokeHandler(
+	ctx context.Context,
+	handler models.SyncHandler,
+	isCompressEnable bool,
+	idsH models.SyncID,
+	centralDataCollector *handlers.CentralDataCollector,
+	ids models.SyncID) error {
+
+	if isCompressEnable {
+		handler.SetCompressionEnabled()
+	}
+	state, statePath, err := lc.getState(ctx, idsH, handler)
+	if err != nil {
+		return errors.Wrapf(err, "failed to get state for handler: %v", idsH)
+	}
+	// process data from central data collector
+	log.WithContext(ctx).Infof("processing centralized data for %+v", idsH)
+
+	// merged data - new structure after merge
+	state = handler.ProcessDataFromCentralData(ctx, state, centralDataCollector.GetData())
+	log.WithContext(ctx).Infof("posting new state for %+v to path %s", idsH, statePath)
+	// post new state
+	err = lc.repo.PostFile(ctx, ids.TenantID, statePath, isCompressEnable, state)
+	if err != nil {
+		return errors.Wrapf(err, "failed to post new state to: %v", statePath)
+	}
+	return nil
+}
+
+func (lc *LearnCore) getState(ctx context.Context, ids models.SyncID, handler models.SyncHandler) (models.State, string, error) {
+	log.WithContext(ctx).Infof("getting state for: %+v", ids)
+	state := handler.NewState()
+	statePath := state.GetFilePath(ids)
+	_, err := lc.repo.GetFile(ctx, ids.TenantID, statePath, state)
+	if err != nil {
+		if !errors.IsClass(err, errors.ClassNotFound) {
+			return nil, "", errors.Wrapf(err, "failed to get state from: %v", statePath)
+		}
+		return state, statePath, nil
+	}
+	log.WithContext(ctx).Debugf("got state: %.512v", fmt.Sprintf("%+v", state))
+	if state.ShouldRebase() {
+		log.WithContext(ctx).Infof("Rebasing state for %+v", ids)
+		// if should rebase is true then original path must not be empty
+		origStatePath := state.GetOriginalPath(ids)
+		rebasedState := handler.NewState()
+		_, err = lc.repo.GetFile(ctx, ids.TenantID, origStatePath, rebasedState)
+		if err != nil {
+			log.WithContext(ctx).Warnf("Failed to rebase state")
+		} else {
+			state = rebasedState
+		}
+	}
+	return state, statePath, nil
+}
+
+func (lc *LearnCore) mergeAgentFiles(
+	ctx context.Context,
+	ids models.SyncID,
+	dataCollector models.DataCollector,
+) (bool, error) {
+	isCompressEnable := false
+	files, err := lc.repo.GetFilesList(ctx, ids)
+	if err != nil {
+		return isCompressEnable, errors.Wrap(err, "failed to get files list")
+	}
+	log.WithContext(ctx).Infof("merging files: %v", files)
+	if len(files) == 0 {
+		log.WithContext(ctx).Infof("no files to merge for: %v", ids)
+		return isCompressEnable, errors.Errorf("no files to merge for: %v", ids).SetClass(errors.ClassNotFound)
+	}
+	for _, file := range files {
+		data := dataCollector.NewDataStruct()
+		fileIsCompressed, err := lc.repo.GetFile(ctx, ids.TenantID, file, data)
+		if err != nil {
+			return isCompressEnable, errors.Wrapf(err, "failed to get file: %v", file)
+		}
+		if fileIsCompressed {
+			isCompressEnable = true
+		}
+		dataCollector.MergeData(data)
+	}
+	return isCompressEnable, nil
+}
+
+func (lc *LearnCore) syncWorker(ctx context.Context, syncHandlers map[models.SyncID]models.SyncHandler) error {
+	if len(syncHandlers) == 0 {
 		return errors.New("got empty handlers list")
 	}
-	for ids, handler := range handlers {
+	for ids, handler := range syncHandlers {
 		dependenciesHandlers := handler.GetDependencies()
 		if len(dependenciesHandlers) > 0 {
 			log.WithContext(ctx).Infof("handle dependency of: %v", ids)
